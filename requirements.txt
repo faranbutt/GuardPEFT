@@ -1,0 +1,12 @@
+transformers
+datasets
+peft
+accelerate
+bitsandbytes
+evaluate
+mlcroissant
+detoxify
+scikit-learn
+pandas
+numpy
+tqdm
