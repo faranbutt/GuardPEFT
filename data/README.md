@@ -7,8 +7,3 @@ This project uses the following datasets:
 - ToxiGen
 - BOLD
 - MedEthicsQA
-
-## Structure
-
-- raw/: original downloaded data
-- processed/: cleaned and split datasets
