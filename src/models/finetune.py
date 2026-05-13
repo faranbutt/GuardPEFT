@@ -121,8 +121,7 @@ if __name__ == "__main__":
     model_name = config["model_name"]
 
     for r in config["lora"]["r"]:
-        # alpha is from config, we can keep fixed or vary
-        alpha = config["lora"]["lora_alpha"][0]  # e.g. 16
+        alpha = config["lora"]["lora_alpha"][0]
         dropout = config["lora"]["lora_dropout"]
         output_dir = f"models/lora_r{r}"
         train_lora(
