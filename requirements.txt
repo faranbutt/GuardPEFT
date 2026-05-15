@@ -1,10 +1,21 @@
+--extra-index-url https://download.pytorch.org/whl/cu128
 torch>=2.0
-transformers>=4.36
-accelerate
+torchvision
+torchaudio
+xformers
+
+unsloth
+transformers==4.56.2
+trl==0.22.2
 peft
 bitsandbytes
+accelerate
+
 datasets
 pandas
 scikit-learn
 tqdm
 pyyaml
+matplotlib
+python-dotenv
+PyYAML

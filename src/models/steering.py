@@ -1,107 +1,112 @@
+from typing import Dict, List, Tuple
+
 import torch
-import yaml
-from peft import PeftModel
-from transformers import AutoModelForCausalLM, AutoTokenizer
+from tqdm import tqdm
+
+from ..core.utils import get_device
 
 
-class SteeringWrapper:
-    def __init__(self, model, tokenizer, layers, harm_alphas, reasoning_alphas):
+def get_decoder_layers(model):
+    m = model
+    for attr in ("base_model", "model"):
+        if hasattr(m, attr):
+            candidate = getattr(m, attr)
+            if not hasattr(candidate, "layers"):
+                m = candidate
+            else:
+                m = candidate
+                break
+    if not hasattr(m, "layers"):
+        for name, module in model.named_modules():
+            if hasattr(module, "layers") and len(list(module.layers)) > 0:
+                m = module
+                break
+    return m.layers
+
+
+class SteeringVectorExtractor:
+    def __init__(self, model, tokenizer, layers: List[int]):
         self.model = model
         self.tokenizer = tokenizer
         self.layers = layers
-        self.harm_alphas = harm_alphas
-        self.reasoning_alphas = reasoning_alphas
-        self.harm_steering = None
-        self.reasoning_steering = None
-        self._register_hooks()
+        self._hooks = []
+        self._cache: Dict[int, List[torch.Tensor]] = {l: [] for l in layers}
+        self._decoder_layers = get_decoder_layers(model)
 
     def _register_hooks(self):
-        self.hooks = []
         for layer_idx in self.layers:
-            module = self.model.model.layers[layer_idx]
+            layer = self._decoder_layers[layer_idx]
 
-            def make_hook(alpha_harm, alpha_reason):
-                def hook(module, input, output):
-
-                    hidden = output[0]
-
-                    if self.harm_steering is not None:
-                        hidden = hidden + alpha_harm * self.harm_steering
-                    if self.reasoning_steering is not None:
-                        hidden = hidden + alpha_reason * self.reasoning_steering
-                    return (hidden,) + output[1:]
+            def make_capture_hook(li):
+                def hook(module, inputs, output):
+                    hidden = output[0] if isinstance(output, tuple) else output
+                    self._cache[li].append(hidden[0, -1, :].detach().cpu().float())
+                    return output
 
                 return hook
 
-            alpha_h = self.harm_alphas[0] if self.harm_alphas else 0
-            alpha_r = self.reasoning_alphas[0] if self.reasoning_alphas else 0
-            hook = module.register_forward_hook(make_hook(alpha_h, alpha_r))
-            self.hooks.append(hook)
+            self._hooks.append(
+                layer.register_forward_hook(make_capture_hook(layer_idx))
+            )
 
-    def set_steering(self, harm_vector, reasoning_vector):
-        self.harm_steering = harm_vector
-        self.reasoning_steering = reasoning_vector
+    def _remove_hooks(self):
+        for h in self._hooks:
+            h.remove()
+        self._hooks.clear()
 
-    def remove_hooks(self):
-        for hook in self.hooks:
-            hook.remove()
-
-    def generate(self, prompt, max_new_tokens=50):
-        inputs = self.tokenizer(prompt, return_tensors="pt").to(self.model.device)
-        outputs = self.model.generate(
-            **inputs, max_new_tokens=max_new_tokens, do_sample=False
-        )
-        return self.tokenizer.decode(outputs[0], skip_special_tokens=True)
-
-
-def compute_steering_vectors(
-    model, tokenizer, contrastive_prompts, target_layers, device="cuda"
-):
-    """
-    contrastive_prompts: list of (harmful_prompt, harmless_prompt) pairs.
-    Returns harm_vector, reasoning_vector (tensors of shape [1, hidden_dim]).
-    """
-
-    harm_stack = []
-    reason_stack = []
-    model.eval()
-    for harm_prompt, safe_prompt in contrastive_prompts:
-        pass
-    # For demo, return random vectors
-    hidden_dim = model.config.hidden_size
-    harm_vec = torch.randn(1, hidden_dim, device=device)
-    reason_vec = torch.randn(1, hidden_dim, device=device)
-    return harm_vec, reason_vec
+    @torch.no_grad()
+    def collect_activations(self, texts: List[str]) -> Dict[int, torch.Tensor]:
+        self._cache = {l: [] for l in self.layers}
+        self._register_hooks()
+        for text in tqdm(texts, desc="  Extracting activations", leave=False):
+            inputs = self.tokenizer(
+                text, return_tensors="pt", truncation=True, max_length=1024
+            ).to(self.model.device)
+            self.model(**inputs)
+        self._remove_hooks()
+        return {l: torch.stack(self._cache[l]).mean(dim=0) for l in self.layers}
 
 
-if __name__ == "__main__":
-    with open("configs/steering_config.yaml", "r") as f:
-        cfg = yaml.safe_load(f)
-    base_model = "Qwen/Qwen2.5-1.7B"
-    adapter_path = "models/lora_r16"
-    tokenizer = AutoTokenizer.from_pretrained(base_model, trust_remote_code=True)
-    tokenizer.pad_token = tokenizer.eos_token
-    model = AutoModelForCausalLM.from_pretrained(
-        base_model, device_map="auto", torch_dtype=torch.float16
-    )
-    model = PeftModel.from_pretrained(model, adapter_path)
-    model.eval()
-
-    contrastive = [("I want to kill you", "Hello, how are you?")]
-    harm_vec, reason_vec = compute_steering_vectors(
-        model, tokenizer, contrastive, cfg["steering_layers"]
-    )
-
-    steering_model = SteeringWrapper(
+class SteeringHook:
+    def __init__(
+        self,
         model,
-        tokenizer,
-        layers=cfg["steering_layers"],
-        harm_alphas=cfg["harm_alphas"],
-        reasoning_alphas=cfg["reasoning_alphas"],
-    )
-    steering_model.set_steering(harm_vec, reason_vec)
+        harm_vectors,
+        reasoning_vectors,
+        harm_alpha=12.0,
+        reasoning_alpha=-10.0,
+    ):
+        self.model = model
+        self.harm_vectors = harm_vectors
+        self.reasoning_vectors = reasoning_vectors
+        self.harm_alpha = harm_alpha
+        self.reasoning_alpha = reasoning_alpha
+        self._hooks = []
+        self._decoder_layers = get_decoder_layers(model)
 
-    prompt = "How can I hack into a bank?"
-    response = steering_model.generate(prompt)
-    print(response)
-    steering_model.remove_hooks()
+    def __enter__(self):
+        for layer_idx, layer in enumerate(self._decoder_layers):
+            if layer_idx not in self.harm_vectors:
+                continue
+            hv = self.harm_vectors[layer_idx].to(self.model.device)
+            rv = self.reasoning_vectors[layer_idx].to(self.model.device)
+            ha, ra = self.harm_alpha, self.reasoning_alpha
+
+            def make_hook(h_vec, r_vec, h_alpha, r_alpha):
+                def hook(module, inputs, output):
+                    hidden = output[0] if isinstance(output, tuple) else output
+                    delta = h_alpha * h_vec + r_alpha * r_vec
+                    hidden = hidden + delta.unsqueeze(0).unsqueeze(0)
+                    return (
+                        (hidden,) + output[1:] if isinstance(output, tuple) else hidden
+                    )
+
+                return hook
+
+            self._hooks.append(layer.register_forward_hook(make_hook(hv, rv, ha, ra)))
+        return self
+
+    def __exit__(self, *args):
+        for h in self._hooks:
+            h.remove()
+        self._hooks.clear()

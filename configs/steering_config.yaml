@@ -1,6 +1,0 @@
-steering_layers: [8, 10, 12, 14, 16]
-harm_alphas: [8, 10, 12, 15]
-reasoning_alphas: [-8, -10, -12, -15]
-num_contrastive_samples: 150
-max_seq_len: 1024
-max_new_tokens: 256

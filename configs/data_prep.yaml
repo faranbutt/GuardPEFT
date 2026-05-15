@@ -1,0 +1,18 @@
+# Configuration for data preparation
+seed: 25
+output_dir: "data/small_dataset"
+datasets:
+  - aegis
+  - biasmd
+  - toxigen
+  - gretel
+  - pku
+  - ethics
+
+aegis:
+  target_rows: 2000
+  checkpoint_n: 50
+  recent_window: 30
+
+biasmd:
+  target_unsafe: 2000
