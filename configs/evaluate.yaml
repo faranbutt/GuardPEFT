@@ -1,0 +1,35 @@
+# configs/evaluate.yaml
+model:
+  name: "unsloth/Qwen3-1.7B-unsloth-bnb-4bit"
+  max_seq_length: 1024
+  max_new_tokens: 256
+  
+judge:
+  use_llm_judge: true
+  judge_model: "deepseek-ai/DeepSeek-R1-Distill-Qwen-1.5B"
+  
+baselines:
+  qwen2_5_7b: "Qwen/Qwen2.5-7B-Instruct"
+  qwen_guard: "Qwen/Qwen3Guard-Gen-0.6B"
+
+datasets:
+  ethics: "data/ethics/ethics_test.csv"
+  pku: "data/pku/pku_test.csv"
+
+adapters:
+  dora:
+    - name: "r8"
+      adapter_dir: "faranbutt789/guardpeft-qwen3-dora-dora_r8"
+    - name: "r16"
+      adapter_dir: "faranbutt789/guardpeft-qwen3-dora-dora_r16"
+    - name: "r32"
+      adapter_dir: "faranbutt789/guardpeft-qwen3-dora-dora_r32"
+  qlora:
+    - name: "r8"
+      adapter_dir: "faranbutt789/guardpeft-qwen3-qlora_r8"
+    - name: "r16"
+      adapter_dir: "faranbutt789/guardpeft-qwen3-qlora_r16"
+    - name: "r32"
+      adapter_dir: "faranbutt789/guardpeft-qwen3-qlora_r32"
+
+seed: 25

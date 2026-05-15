@@ -1,0 +1,33 @@
+paths:
+ 
+  output_dir: "data"
+  small_dataset_dir: "data/small_dataset"
+  
+
+  aegis_prepared: "data/aegis/aegis_prepared.csv"
+  aegis_checkpoint: "data/aegis/aegis_checkpoint.csv"
+  
+  biasmd_prepared: "data/biasmd/biasmd_prepared.csv"
+  biasmd_checkpoint: "data/biasmd/biasmd_checkpoint.csv"
+  
+  ethics_commonsense: "data/ethics/commonsense_prepared.csv"
+  ethics_justice: "data/ethics/justice_prepared.csv"
+  ethics_virtue: "data/ethics/virtue_prepared.csv"
+  ethics_deontology: "data/ethics/deontology_prepared.csv"
+  
+  gretel_prepared: "data/gretel/gretel_prepared.csv"
+  pku_prepared: "data/pku/pku_prepared.csv"
+  toxigen_prepared: "data/toxigen/toxigen_prepared.csv"
+
+
+  train: "data/small_dataset/train_small.csv"
+  val: "data/small_dataset/val_small.csv"
+  test: "data/small_dataset/test_small.csv"
+
+aegis:
+  target: 2000
+  checkpoint_n: 50
+  recent_window: 30
+
+
+seed: 25
