@@ -1,4 +1,3 @@
-# configs/evaluate.yaml
 model:
   name: "unsloth/Qwen3-1.7B-unsloth-bnb-4bit"
   max_seq_length: 1024
