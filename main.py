@@ -6,15 +6,14 @@ def main():
     parser = argparse.ArgumentParser(description="GuardPEFT CLI")
     subparsers = parser.add_subparsers(dest="command", help="Available commands")
 
-    # Data prep
     prep_parser = subparsers.add_parser("prep", help="Run data preparation scripts")
     prep_parser.add_argument("--dataset", required=True, choices=["aegis", "biasmd", "ethics", "gretel", "pku", "toxigen", "merge"], help="Dataset to prepare")
 
-    # Train
+
     train_parser = subparsers.add_parser("train", help="Run training scripts")
     train_parser.add_argument("--method", required=True, choices=["dora", "qlora", "dora_steering", "qlora_steering"], help="Training method")
 
-    # Eval
+
     eval_parser = subparsers.add_parser("evaluate", help="Run evaluation scripts")
     eval_parser.add_argument("--target", required=True, choices=["ethics", "pku", "dora_ethics", "dora_pku", "test_set"], help="Evaluation target")
 
